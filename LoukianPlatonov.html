@@ -1,0 +1,235 @@
+<!--
+   auteur : loukian platonov
+   date   : 13.03.25
+-->
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+   <meta charset="UTF-8">
+   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+   <title>Puzzle Chien</title>
+   <style>
+      body {
+         display: flex;
+         flex-direction: column;
+         align-items: center;
+         justify-content: center;
+         height: 100vh;
+         background-color: #f4f4f4;
+      }
+
+      .puzzle-container {
+         display: grid;
+         grid-template-columns: repeat(8, 80px);
+         grid-template-rows: repeat(8, 80px);
+         gap: 2px;
+         border: 2px solid black;
+         margin-top: 20px;
+      }
+
+      .pieces-container {
+         display: flex;
+         flex-wrap: wrap;
+         width: 640px;
+         margin-top: 20px;
+         border: 2px solid rgb(0, 0, 0);
+         padding: 10px;
+      }
+
+      .tile {
+         width: 80px;
+         height: 80px;
+         background-image: url('https://encrypted-tbn2.gstatic.com/images?q=tbn:ANd9GcTiQWGGdOv4iKMpxODCVt9IQgHniv5zQ96e9kLh3BtJpd8dqaKdYzoHHw8B_lQvo7_MC6daytLUYPIT32amezPq7g');
+         background-size: 640px 640px;
+         cursor: grab;
+         border: 1px solid black;
+         box-sizing: border-box;
+      }
+
+      .empty {
+         width: 80px;
+         height: 80px;
+         background-color: white;
+         border: 1px dashed gray;
+
+      }
+
+      .correct {
+         border: 2px solid green;
+      }
+
+      .incorrect {
+         border: 2px solid red;
+      }
+
+      #correction, #help {
+         width: 40%;
+         height: 50px;
+         font-size: xx-large;
+      }
+   </style>
+</head>
+
+<body>
+   <div class="puzzle-container" id="puzzle"></div>
+   <div class="pieces-container" id="pieces"></div>
+   <button id="correction">correction</button>
+   <button id="help">Afficher l'aide</button>
+
+</body>
+<script>
+   // class...
+   class Puzzle {
+      // initialisation...
+      zonePuzzle = document.getElementById("puzzle");
+      zonePiece = document.getElementById("pieces");
+      zone = [];
+      taille = 80;
+      helpVisible = false;
+
+      // constructeur...
+      constructor(tailleLargeur) {
+         let taillePuzzle = tailleLargeur * tailleLargeur;
+
+         // vérifie que les taille sois possible...
+         if (tailleLargeur % 1 !== 0 && taillePuzzle > 0) {
+            console.error(`taille du puzzle invalide : ${taillePuzzle}`);
+            return;
+         }
+
+         // vas créer le nombre de carré pour la taille que l'on veut...
+         this.zonePuzzle.style.gridTemplateColumns = `repeat(${tailleLargeur}, ${this.taille}px)`;
+         this.zonePuzzle.style.gridTemplateRows = `repeat(${tailleLargeur}, ${this.taille}px)`;
+
+
+         // vas initialiser les carré vide dans la zone du puzzle...
+         for (let index = 0; index < taillePuzzle; index++) {
+            // creer les zone ou l'on vas mettre les carré...
+            const carre = document.createElement("div");
+            carre.classList.add("empty"); // <- ajoute le style (que c'est une zone)... 😈😈😈😈😈 mettre le fais que cela sois vide 😈😈😈😈😈
+
+            const ligne = Math.floor(index / tailleLargeur);
+            const col = index % tailleLargeur;
+            carre.dataset.index = index; // <- ajouter dans son dataset sa position correcte...
+            carre.dataset.col = col; // <- ajouter dans son dataset sa position correcte...
+            carre.dataset.ligne = ligne; // <- ajouter dans son dataset sa position correcte...
+
+            // ajout des evenements...
+            carre.addEventListener("dragover", allowDrop);
+            carre.addEventListener("drop", drop);
+
+            // ajout physique dans l'html...
+            this.zonePuzzle.appendChild(carre);
+
+            // ajout dans notre Puzzle... (pour utilisation futur)
+            this.zone[index] = carre;
+         }
+
+         // vas mettre les ACTUEL piece en dessous de la zone du puzzle... (c'elle que l'on déplace)
+         let pieceMelanger = this.shuffle(this.zone);
+         pieceMelanger.forEach(piece => {
+            const piecePuzzle = document.createElement("div");
+            piecePuzzle.classList.add("tile")
+            piecePuzzle.classList.backgroundPosition = `${(piece.dataset.PositionCorrect % tailleLargeur % 1) * this.taille}px -${Math.floor(piece.dataset.PositionCorrect / tailleLargeur % 1) * this.taille}px`; // <- affiche biens l'image arrière...
+            piecePuzzle.draggable = true;
+            piecePuzzle.dataset.index = piece.dataset.index;
+            piecePuzzle.dataset.col = piece.dataset.col;
+            piecePuzzle.dataset.ligne = piece.dataset.ligne;
+            piecePuzzle.id = "piece-" + piece.dataset.index;
+            piecePuzzle.style.backgroundPosition = `-${piece.dataset.col * this.taille}px -${piece.dataset.ligne * this.taille}px`;
+            piecePuzzle.addEventListener("dragstart", drag);
+            this.zonePiece.appendChild(piecePuzzle);
+         });
+      }
+
+
+      // METHODES...
+      // mélanges une liste...    (https://stackoverflow.com/questions/2450954/how-to-randomize-shuffle-a-javascript-array)
+      shuffle(array) {
+         let currentIndex = array.length;
+
+         // While there remain elements to shuffle...
+         while (currentIndex != 0) {
+
+            // Pick a remaining element...
+            let randomIndex = Math.floor(Math.random() * currentIndex);
+            currentIndex--;
+
+            // And swap it with the current element.
+            [array[currentIndex], array[randomIndex]] = [
+               array[randomIndex], array[currentIndex]];
+         }
+         return array;
+      }
+
+      // vérifier les cases et affiche la couleur approprié...
+      verify() {
+         document.getElementById("puzzle").childNodes.forEach(endroit => {
+            // si il y a une pièce dans l'endroit...
+            if (endroit.hasChildNodes()) {
+
+               // si elle est a la bonne position...
+               if (endroit.firstChild.dataset.index == endroit.dataset.index) {
+                  endroit.firstChild.classList.remove("incorrect")
+                  endroit.firstChild.classList.add("correct");
+               } else {
+                  endroit.firstChild.classList.remove("correct");
+                  endroit.firstChild.classList.add("incorrect")
+               }
+            }
+         });
+      }
+
+      showHelp() {
+         this.helpVisible = !this.helpVisible; // Inverser l'état de l'aide
+
+        this.zonePuzzle.childNodes.forEach((endroit) => {
+            if (endroit.classList.contains("empty")) {
+                if (this.helpVisible) {
+                    // Afficher l'aide (image correcte)
+                    const col = endroit.dataset.col;
+                    const ligne = endroit.dataset.ligne;
+                    endroit.style.backgroundImage = "url('https://encrypted-tbn2.gstatic.com/images?q=tbn:ANd9GcTiQWGGdOv4iKMpxODCVt9IQgHniv5zQ96e9kLh3BtJpd8dqaKdYzoHHw8B_lQvo7_MC6daytLUYPIT32amezPq7g')";
+                    endroit.style.backgroundSize = "640px 640px";
+                    endroit.style.backgroundPosition = `-${col * this.taille}px -${ligne * this.taille}px`;
+                } else {
+                    // Masquer l'aide (retour à la normale)
+                    endroit.style.backgroundImage = "";
+                    endroit.style.backgroundColor = "white";
+                }
+            }
+        });
+    }
+   }
+
+   // fonction...
+   function allowDrop(event) {
+      event.preventDefault();
+   }
+
+   function drag(event) {
+      event.dataTransfer.setData("text", event.target.id);
+   }
+
+   function drop(event) {
+      event.preventDefault();
+      var data = event.dataTransfer.getData("text");
+      if (event.target.classList.contains('tile')) {
+         event.target.parentElement.appendChild(document.getElementById(data));
+         document.getElementById("pieces").appendChild(event.target);
+
+      } else {
+         event.target.appendChild(document.getElementById(data));
+      }
+   }
+
+   // code...
+   let a = new Puzzle(12);// <- creations de la classe du jeu
+
+   document.getElementById("correction").addEventListener("click", a.verify);
+   document.getElementById("help").addEventListener("click", () => a.showHelp());
+
+</script>
+
+</html>
